@@ -468,6 +468,7 @@ void Tracker::TrackMap()
       
       // Project according to current view, and if it's not in the image, skip.
       TData.Project(mse3CamFromWorld, mCamera); // mse3CamFromWorldとは。逐次的に更新していくもの？project要確認
+      // Trackingしている点を現在の画像に射影するということ？
       if(!TData.bInImage)
 	continue;   
       
@@ -488,7 +489,8 @@ void Tracker::TrackMap()
   
   // Next: A large degree of faffing about and deciding which points are going to be measured!
   // First, randomly shuffle the individual levels of the PVS.
-  // なぜShuffleなのか
+  // faffing: おろおろするの現在分詞
+  // なぜShuffleなのか、もっといいのないのか、とりあえずshuffleということだろうか
   for(int i=0; i<LEVELS; i++)
     random_shuffle(avPVS[i].begin(), avPVS[i].end());
 
@@ -527,7 +529,7 @@ void Tracker::TrackMap()
   // If we do want to do a coarse stage, also check that there's enough high-level 
   // PV map points. We use the lowest-res two pyramid levels (LEVELS-1 and LEVELS-2),
   // with preference to LEVELS-1.
-  // Levelってなんだろう、scaleだろうか
+  // Levelってなんだろう、scaleだろうか。pyramid scaleとのこと
   if(bTryCoarse && avPVS[LEVELS-1].size() + avPVS[LEVELS-2].size() > *gvnCoarseMin )
     {
       // Now, fill the vNextToSearch struct with an appropriate number of 
@@ -563,11 +565,13 @@ void Tracker::TrackMap()
 	    }
 	}
       // Now go and attempt to find these points in the image!
+      // 重要、SearchForPoints要確認
       unsigned int nFound = SearchForPoints(vNextToSearch, nCoarseRange, *gvnCoarseSubPixIts);
       vIterationSet = vNextToSearch;  // Copy over into the to-be-optimised list.
       if(nFound >= *gvnCoarseMin)  // Were enough found to do any meaningful optimisation?
 	{
 	  mbDidCoarse = true;
+	  // Gauss-Newton Pose Updates要確認、mse3CamFromWorldを更新していく
 	  for(int iter = 0; iter<10; iter++) // If so: do ten Gauss-Newton pose updates iterations.
 	    {
 	      if(iter != 0)
@@ -707,7 +711,7 @@ void Tracker::TrackMap()
   
   // Update the current keyframe with info on what was found in the frame.
   // Strictly speaking this is unnecessary to do every frame, it'll only be
-  // needed if the KF gets added to MapMaker. Do it anyway.
+  // needed if the KF gets added to MapMaker. Do it anyway. // KFはKey Frameだと推察される
   // Export pose to current keyframe:
   mCurrentKF.se3CfromW = mse3CamFromWorld;
   
@@ -757,9 +761,10 @@ int Tracker::SearchForPoints(vector<TrackerData*> &vTD, int nRange, int nSubPixI
     {
       // First, attempt a search at pixel locations which are FAST corners.
       // (PatchFinder::FindPatchCoarse)
+      // FASTとは: https://www.edwardrosten.com/work/fast.html
       TrackerData &TD = *vTD[i];
-      PatchFinder &Finder = TD.Finder;
-      Finder.MakeTemplateCoarseCont(TD.Point);
+      PatchFinder &Finder = TD.Finder; // TD.Finder要確認
+      Finder.MakeTemplateCoarseCont(TD.Point); // 謎、要確認、ここで探すための事前準備？FAST計算？
       if(Finder.TemplateBad())
 	{
 	  TD.bInImage = TD.bPotentiallyVisible = TD.bFound = false;
@@ -768,7 +773,7 @@ int Tracker::SearchForPoints(vector<TrackerData*> &vTD, int nRange, int nSubPixI
       manMeasAttempted[Finder.GetLevel()]++;  // Stats for tracking quality assessmenta
       
       bool bFound = 
-	Finder.FindPatchCoarse(ir(TD.v2Image), mCurrentKF, nRange);
+	Finder.FindPatchCoarse(ir(TD.v2Image), mCurrentKF, nRange); // 要確認、ここで探してる？
       TD.bSearched = true;
       if(!bFound) 
 	{
@@ -786,8 +791,8 @@ int Tracker::SearchForPoints(vector<TrackerData*> &vTD, int nRange, int nSubPixI
       if(nSubPixIts > 0)
 	{
 	  TD.bDidSubPix = true;
-	  Finder.MakeSubPixTemplate();
-	  bool bSubPixConverges=Finder.IterateSubPixToConvergence(mCurrentKF, nSubPixIts);
+	  Finder.MakeSubPixTemplate(); // 謎、要確認、Sub-pixelとは
+	  bool bSubPixConverges=Finder.IterateSubPixToConvergence(mCurrentKF, nSubPixIts); // ここで探してる？そうだとしたら上は？
 	  if(!bSubPixConverges)
 	    { // If subpix doesn't converge, the patch location is probably very dubious!
 	      TD.bFound = false;
