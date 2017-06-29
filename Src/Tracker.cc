@@ -94,6 +94,7 @@ void Tracker::TrackFrame(Image<byte> &imFrame, bool bDraw)
   mCurrentKF.MakeKeyFrame_Lite(imFrame);
 
   // Update the small images for the rotation estimator
+  // SBI: Small Blurry Image
   static gvar3<double> gvdSBIBlur("Tracker.RotationEstimatorBlur", 0.75, SILENT);
   static gvar3<int> gvnUseSBI("Tracker.UseRotationEstimator", 1, SILENT);
   mbUseSBIInit = *gvnUseSBI;
@@ -193,7 +194,7 @@ bool Tracker::AttemptRecovery()
   if(!bRelocGood)
     return false;
   
-  SE3<> se3Best = mRelocaliser.BestPose();
+  SE3<> se3Best = mRelocaliser.BestPose(); // SE3とは
   mse3CamFromWorld = mse3StartPos = se3Best;
   mv6CameraVelocity = Zeros;
   mbJustRecoveredSoUseCoarse = true;
@@ -466,7 +467,7 @@ void Tracker::TrackMap()
       TrackerData &TData = *p.pTData;
       
       // Project according to current view, and if it's not in the image, skip.
-      TData.Project(mse3CamFromWorld, mCamera); 
+      TData.Project(mse3CamFromWorld, mCamera); // mse3CamFromWorldとは。逐次的に更新していくもの？project要確認
       if(!TData.bInImage)
 	continue;   
       
@@ -474,6 +475,7 @@ void Tracker::TrackMap()
       TData.GetDerivsUnsafe(mCamera);
 
       // And check what the PatchFinder (included in TrackerData) makes of the mappoint in this view..
+      // 謎
       TData.nSearchLevel = TData.Finder.CalcSearchLevelAndWarpMatrix(TData.Point, mse3CamFromWorld, TData.m2CamDerivs);
       if(TData.nSearchLevel == -1)
 	continue;   // a negative search pyramid level indicates an inappropriate warp for this view, so skip.
@@ -486,6 +488,7 @@ void Tracker::TrackMap()
   
   // Next: A large degree of faffing about and deciding which points are going to be measured!
   // First, randomly shuffle the individual levels of the PVS.
+  // なぜShuffleなのか
   for(int i=0; i<LEVELS; i++)
     random_shuffle(avPVS[i].begin(), avPVS[i].end());
 
@@ -524,6 +527,7 @@ void Tracker::TrackMap()
   // If we do want to do a coarse stage, also check that there's enough high-level 
   // PV map points. We use the lowest-res two pyramid levels (LEVELS-1 and LEVELS-2),
   // with preference to LEVELS-1.
+  // Levelってなんだろう、scaleだろうか
   if(bTryCoarse && avPVS[LEVELS-1].size() + avPVS[LEVELS-2].size() > *gvnCoarseMin )
     {
       // Now, fill the vNextToSearch struct with an appropriate number of 
@@ -1002,6 +1006,7 @@ string Tracker::GetMessageForUser()
   return mMessageForUser.str();
 }
 
+// 謎、mv6SBIRotを更新する
 void Tracker::CalcSBIRotation()
 {
   mpSBILastFrame->MakeJacs();
